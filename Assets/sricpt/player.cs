@@ -1,6 +1,6 @@
 using System.Collections;
 using UnityEngine;
-using UnityEngine.SceneManagement; // Diperlukan untuk Restart Scene
+using UnityEngine.SceneManagement;
 using TMPro;
 
 public class player : MonoBehaviour
@@ -20,10 +20,18 @@ public class player : MonoBehaviour
     private int sisaAmunisi;
     private bool sedangReload = false;
 
-    [Header("Pisau (Jarak Dekat)")]
+    [Header("Pisau / Pedang (Jarak Dekat)")]
     [SerializeField] private float damagePisau = 20f;
     [SerializeField] private float jangkauanPisau = 1.5f;
     [SerializeField] private LayerMask musuhLayer;
+
+    [Header("Visual Tebasan Pedang")]
+    [SerializeField] private Transform porosPedang;
+    [SerializeField] private TrailRenderer trailPedang;
+    [SerializeField] private float sudutTebasan = 150f;
+    [SerializeField] private float durasiTebas = 0.15f;
+    [SerializeField] private float cooldownTebas = 0.35f;
+    private bool sedangMenebas = false;
 
     [Header("Tampilan UI (TMP)")]
     [SerializeField] private TextMeshProUGUI teksHP;
@@ -35,7 +43,7 @@ public class player : MonoBehaviour
 
     private void Start()
     {
-        Time.timeScale = 1f; // Pastikan waktu berjalan normal saat mulai/restart
+        Time.timeScale = 1f;
         isGameOver = false;
         currentHP = maxHP;
         sisaAmunisi = maxAmunisi;
@@ -45,12 +53,16 @@ public class player : MonoBehaviour
             panelGameOver.SetActive(false);
         }
 
+        if (porosPedang != null)
+        {
+            porosPedang.gameObject.SetActive(false);
+        }
+
         UpdateUI();
     }
 
     private void Update()
     {
-        // Hentikan kontrol jika sudah Game Over
         if (isGameOver) return;
 
         GerakPlayer();
@@ -75,8 +87,8 @@ public class player : MonoBehaviour
             StartCoroutine(Reloading());
         }
 
-        // Serang Pisau (Klik Kanan)
-        if (Input.GetMouseButtonDown(1))
+        // Serang Pedang / Pisau (Klik Kanan)
+        if (Input.GetMouseButtonDown(1) && !sedangMenebas)
         {
             SerangPisau();
         }
@@ -117,6 +129,8 @@ public class player : MonoBehaviour
 
     private void SerangPisau()
     {
+        StartCoroutine(AnimasiTebas());
+
         Collider2D[] hitEnemies = Physics2D.OverlapCircleAll(transform.position, jangkauanPisau, musuhLayer);
         foreach (Collider2D enemy in hitEnemies)
         {
@@ -126,6 +140,36 @@ public class player : MonoBehaviour
                 health.TakeDamage(damagePisau);
             }
         }
+    }
+
+    private IEnumerator AnimasiTebas()
+    {
+        sedangMenebas = true;
+
+        if (porosPedang != null)
+        {
+            porosPedang.gameObject.SetActive(true);
+            if (trailPedang != null) trailPedang.Clear();
+
+            float sudutAwal = sudutTebasan / 2f;
+            float sudutAkhir = -sudutTebasan / 2f;
+            float waktu = 0f;
+
+            while (waktu < durasiTebas)
+            {
+                waktu += Time.deltaTime;
+                float t = waktu / durasiTebas;
+                float sudutSekarang = Mathf.Lerp(sudutAwal, sudutAkhir, t);
+                porosPedang.localRotation = Quaternion.Euler(0f, 0f, sudutSekarang);
+                yield return null;
+            }
+
+            porosPedang.gameObject.SetActive(false);
+        }
+
+        float sisaCooldown = Mathf.Max(0f, cooldownTebas - durasiTebas);
+        yield return new WaitForSeconds(sisaCooldown);
+        sedangMenebas = false;
     }
 
     public void TakeDamage(float amount)
@@ -149,13 +193,12 @@ public class player : MonoBehaviour
         {
             panelGameOver.SetActive(true);
         }
-        Time.timeScale = 0f; // Menghentikan seluruh pergerakan musuh dan spawner
+        Time.timeScale = 0f;
     }
 
-    // Fungsi ini akan dipanggil oleh Tombol Restart
     public void RestartGame()
     {
-        Time.timeScale = 1f; // Kembalikan kecepatan waktu ke normal
+        Time.timeScale = 1f;
         SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
     }
 
